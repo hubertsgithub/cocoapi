@@ -3,6 +3,7 @@ import numpy as np
 import skimage.io as io
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import os
 import pylab
 
 import PIL.Image
@@ -10,9 +11,6 @@ import PIL.ImageDraw
 import tqdm
 
 ### Based on pycocoDemo.ipynb ###
-
-#pylab.rcParams['figure.figsize'] = (8.0, 10.0)
-
 dataDir='..'
 dataType='val2014'
 annFile='{}/annotations/instances_{}.json'.format(dataDir,dataType)
@@ -64,6 +62,7 @@ for img in tqdm.tqdm(imgs[1000:1010]):
     for ann in anns:
         # This generates binary mask.
         mask = coco.annToMask(ann)
+        #print set(mask.flatten())
         coco_class_id = ann['category_id']
         mask = mask.astype(np.uint8) * coco_class_id
         if all_masks is None:
@@ -71,20 +70,25 @@ for img in tqdm.tqdm(imgs[1000:1010]):
         else:
             all_masks[mask != 0] = mask[mask != 0]
     all_masks[all_masks == 0] = 255
+    #print set(all_masks.flatten())
 
-    out_png = img['file_name'].replace('.jpg', '.png')
-
+    out_dir = 'labels_{}'.format(dataType)
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    out_png = os.path.join(out_dir, img['file_name'].replace('.jpg', '.png'))
     print('Saving label to {}\n\tand vis to {}'.format(out_png, out_png.replace('.png', '_vis.png')))
 
-    im=plt.imshow(all_masks)
+    all_masks_vis = all_masks.copy()
+    all_masks_vis[all_masks_vis==255] = 0
+    im=plt.imshow(all_masks_vis)
     ### Modified from https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib ###
-    values = list(set(all_masks.flatten()))
+    values = list(set(all_masks_vis.flatten()))
     # get the colors of the values, according to the colormap used by imshow
     colors = [ im.cmap(im.norm(value)) for value in values]
     # create a patch (proxy artist) for every color
     try:
         label_to_name = coco_id_to_name
-        label_to_name[255] = 'BACKGROUND'
+        label_to_name[0] = 'BACKGROUND'
         patches = [ mpatches.Patch(color=colors[i], label="{}".format(label_to_name[values[i]]) ) for i in range(len(values)) ]
     except Exception as e:
         print e
@@ -92,5 +96,6 @@ for img in tqdm.tqdm(imgs[1000:1010]):
     # put those patched as legend-handles into the legend
     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0. )
     #########################################################################################################
-    plt.savefig(out_png.replace('.png', '_vis.png'))
+
+    plt.savefig(out_png.replace('.png', '_vis.png'), bbox_inches='tight')
     PIL.Image.fromarray(all_masks).save(out_png)
